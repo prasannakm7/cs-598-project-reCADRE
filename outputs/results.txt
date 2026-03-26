@@ -1,0 +1,51 @@
+reCADRE Training Results
+==================================================
+
+Hyperparameters:
+  data_dir: originalData
+  output_dir: outputs
+  embedding_dim: 200
+  attention_size: 128
+  attention_head: 8
+  dropout_rate: 0.6
+  use_attention: True
+  no_attention: False
+  use_cntx_attn: True
+  no_cntx_attn: False
+  batch_size: 8
+  max_iter: 12000
+  learning_rate: 0.3
+  weight_decay: 0.0003
+  eval_every: 5
+  seed: 2019
+  use_cuda: True
+  cpu: True
+
+Dataset:
+  Cell lines: 846
+  Drugs: 260
+  Genes: 3000 (1500 active)
+  Pathways: 25
+  Split: 60/20/20
+
+Results (Test Set):
+  F1 Score:  62.12
+  Accuracy:  77.36
+  AUROC:     81.92
+  AUPR:      67.13
+  Precision: 68.41
+  Recall:    56.89
+
+Results (Validation Set):
+  F1 Score:  62.66
+  Accuracy:  77.76
+  AUROC:     82.50
+  AUPR:      68.43
+
+Paper Reference (CADRE on GDSC, Table 1):
+  F1 Score:  64.3 ± 0.22
+  Accuracy:  78.6 ± 0.34
+  AUROC:     83.4 ± 0.19
+  AUPR:      70.6 ± 1.30
+
+Training time: 3181.7s
