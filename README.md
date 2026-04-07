@@ -14,29 +14,34 @@ CADRE predicts the sensitivity of cancer cell lines to oncology drugs using gene
 2. **Contextual Attention** — weights gene importance differently per drug based on the drug's target pathway, producing drug-specific cell line representations
 3. **Pretrained Gene Embeddings** — transfers biological knowledge from Gene2Vec embeddings trained on large-scale co-expression data
 
-This project re-implements the full CADRE architecture using PyHealth's `SampleBaseDataset` abstraction and standard PyTorch `DataLoader`, enabling integration with the broader PyHealth ecosystem.
+This project re-implements the full CADRE architecture using a standard PyTorch `Dataset` and `DataLoader`. It also includes Extension 2: a scaled dot-product attention variant (`CADREDotAttn`) that replaces CADRE's additive contextual conditioning with transformer-style query/key alignment.
 
 ## Project Structure
 
 ```
 reCADRE/
-├── README.md            # This file
-├── dataset.py           # GDSC dataset wrapper for PyHealth SampleBaseDataset
-├── model.py             # CADRE model (encoder, decoder, attention, loss)
-├── train.py             # Training script with OneCycle LR, evaluation, logging
-├── originalData/        # Pre-processed GDSC data files
-│   ├── exp_gdsc.csv         # Binary gene expression (1014 × 3000)
-│   ├── gdsc.csv             # Binary drug sensitivity (846 × 260)
-│   ├── drug_info_gdsc.csv   # Drug metadata with target pathways
-│   ├── exp_emb_gdsc.csv     # Gene2Vec embeddings (3001 × 200)
-│   ├── mut_gdsc.csv         # Gene mutation data
-│   ├── cnv_gdsc.csv         # Copy number variation data
-│   ├── met_gdsc.csv         # Gene methylation data
-│   └── rng.txt              # Shuffle indices for reproducibility
-└── outputs/             # Training outputs (generated)
-    ├── results.txt          # Human-readable results summary
-    ├── logs.pkl             # Full training logs (metrics, predictions)
-    └── model.pt             # Best model checkpoint
+├── README.md               # This file
+├── dataset.py              # GDSC dataset wrapper (PyTorch Dataset)
+├── model.py                # CADRE model (encoder, decoder, attention, loss)
+├── model_dot_attn.py       # Extension 2: CADREDotAttn (dot-product attention)
+├── train.py                # Training script with OneCycle LR, evaluation, logging
+├── run_extension2.py       # Extension 2: trains both models and prints comparison
+├── originalData/           # Pre-processed GDSC data files
+│   ├── exp_gdsc.csv            # Binary gene expression (1014 × 3000)
+│   ├── gdsc.csv                # Binary drug sensitivity (846 × 260)
+│   ├── drug_info_gdsc.csv      # Drug metadata with target pathways
+│   ├── exp_emb_gdsc.csv        # Gene2Vec embeddings (3001 × 200)
+│   ├── mut_gdsc.csv            # Gene mutation data
+│   ├── cnv_gdsc.csv            # Copy number variation data
+│   ├── met_gdsc.csv            # Gene methylation data
+│   └── rng.txt                 # Shuffle indices for reproducibility
+└── outputs/                # Training outputs (generated)
+    ├── results.txt             # Human-readable results summary
+    ├── logs.pkl                # Full training logs (metrics, predictions)
+    ├── model.pt                # Best model checkpoint
+    └── extension2/             # Extension 2 outputs
+        ├── cadre/              # CADRE run (logs, model, results)
+        └── dot_product/        # DotAttn run (logs, model, results)
 ```
 
 ## Dataset
@@ -61,16 +66,16 @@ The GDSC (Genomics of Drug Sensitivity in Cancer) dataset:
 - **Drug sensitivity:** Activity area discretized into binary sensitive/resistant labels using the waterfall algorithm.
 - **Gene embeddings:** 200-dimensional Gene2Vec embeddings pretrained on Gene Expression Omnibus (GEO).
 
-### PyHealth Integration
+### Dataset Usage
 
-`dataset.py` wraps the data into PyHealth's `SampleBaseDataset`. Each sample represents one cell line:
+`dataset.py` wraps the data into a standard PyTorch `Dataset`. Each sample represents one cell line:
 
 ```python
 from dataset import GDSCDataset, split_dataset
 
 ds = GDSCDataset(data_dir="originalData")
-pyhealth_ds = ds.to_pyhealth()                        # SampleBaseDataset (846 samples)
-train_ds, val_ds, test_ds = split_dataset(pyhealth_ds) # 60/20/20 split
+dataset = ds.to_dataset()                          # SampleBaseDataset (846 samples)
+train_ds, val_ds, test_ds = split_dataset(dataset) # 60/20/20 split
 
 gene_embeddings = ds.get_gene_embeddings()  # (3001, 200) for model init
 pathway_info = ds.get_pathway_info()        # pathway ID mappings
@@ -90,7 +95,9 @@ Sample format:
 
 ## Model Architecture
 
-### ExpEncoder
+### CADRE (`model.py`)
+
+#### ExpEncoder
 - Looks up pretrained Gene2Vec embeddings (frozen) for active genes
 - Expands gene embeddings across all 260 drugs
 - Adds drug pathway embedding (contextual conditioning)
@@ -98,16 +105,16 @@ Sample format:
 - Sums across heads, then weighted-averages gene embeddings per drug
 - Applies dropout
 
-### DrugDecoder
+#### DrugDecoder
 - Learned drug embedding per drug (260 × 200)
 - Dot product between encoder output and drug embedding
 - Per-drug bias term
 
-### Loss
+#### Loss
 - `BCEWithLogitsLoss` masked to tested (cell line, drug) pairs only
 - L2 regularization via SGD weight decay
 
-### Parameters
+#### Parameters
 
 | Group | Count | Status |
 |-------|-------|--------|
@@ -119,6 +126,33 @@ Sample format:
 | Drug bias | 260 | Trainable |
 | **Total trainable** | **82,220** | |
 
+---
+
+### Extension 2 — CADREDotAttn (`model_dot_attn.py`)
+
+Replaces CADRE's additive contextual attention with scaled dot-product attention. Instead of conditioning gene importance via an additive pathway embedding, drug embeddings from the decoder act as queries that probe gene key vectors for geometric alignment:
+
+```
+Keys    = key_proj(e_gene)          # gene embeddings -> key space
+Queries = query_proj(e_drug)        # drug embeddings -> query space
+Scores  = Q · K^T / sqrt(d_k)      # scaled dot product
+Output  = W_O · concat(heads)
+```
+
+Drug embeddings receive gradients from two paths: the prediction dot-product (decoder) and the attention alignment scores (encoder), jointly shaping them to predict response and attend to relevant genes.
+
+#### Parameters
+
+| Group | Count | Status |
+|-------|-------|--------|
+| Gene embeddings (E_G) | 600,200 | Frozen (pretrained) |
+| Drug embeddings (E_D) | 52,000 | Trainable |
+| key\_proj (200→512) | 102,400 | Trainable |
+| query\_proj (200→512) | 102,400 | Trainable |
+| W\_O (512→200) | 102,400 | Trainable |
+| Drug bias | 260 | Trainable |
+| **Total trainable** | **359,460** | |
+
 ## Training
 
 ### Quick Start
@@ -127,14 +161,17 @@ Sample format:
 # Install dependencies
 pip install -r requirements.txt
 
-# Train (reduced steps for quick validation, ~50 min on CPU)
-python train.py --max_iter 12000 --cpu
-
-# Train (full paper settings, ~3-5 hours on CPU)
-python train.py --cpu
-
-# With GPU (CUDA)
+# Train CADRE (full paper settings)
 python train.py
+
+# Train dot-product attention variant (Extension 2)
+python train.py --dot_product_attn
+
+# Run Extension 2 comparison (trains both, prints side-by-side table)
+python run_extension2.py
+
+# Quick smoke test
+python run_extension2.py --max_iter 800 --cpu
 ```
 
 ### Training Configuration
@@ -169,53 +206,55 @@ Following Section 4.2: during training, missing drug sensitivity labels are fill
 ```
 python train.py --help
 
---data_dir         Path to data directory (default: originalData/)
---output_dir       Path to output directory (default: outputs/)
---embedding_dim    Gene embedding dimension (default: 200)
---attention_size   Attention hidden dimension (default: 128)
---attention_head   Number of attention heads (default: 8)
---dropout_rate     Dropout probability (default: 0.6)
---no_attention     Disable attention (vanilla collaborative filtering)
---no_cntx_attn     Disable contextual attention (SADRE variant)
---batch_size       Training batch size (default: 8)
---max_iter         Total training steps (default: 48000)
---learning_rate    Max learning rate for OneCycle (default: 0.3)
---weight_decay     L2 regularization coefficient (default: 3e-4)
---eval_every       Evaluate every N epochs (default: 10)
---seed             Random seed (default: 2019)
---cpu              Force CPU training
+--data_dir            Path to data directory (default: originalData/)
+--output_dir          Path to output directory (default: outputs/)
+--embedding_dim       Gene embedding dimension (default: 200)
+--attention_size      Attention hidden dimension for CADRE (default: 128)
+--attention_head      Number of attention heads (default: 8)
+--d_k                 Key/query dim per head for dot-product attention (default: 64)
+--dropout_rate        Dropout probability (default: 0.6)
+--no_attention        Disable attention (vanilla collaborative filtering)
+--no_cntx_attn        Disable contextual attention (SADRE variant)
+--dot_product_attn    Use scaled dot-product attention (Extension 2)
+--batch_size          Training batch size (default: 8)
+--max_iter            Total training steps (default: 48000)
+--learning_rate       Max learning rate for OneCycle (default: 0.3)
+--weight_decay        L2 regularization coefficient (default: 3e-4)
+--eval_every          Evaluate every N epochs (default: 10)
+--seed                Random seed (default: 2019)
+--cpu                 Force CPU training
 ```
 
 ## Results
 
-### Reproduction (12k steps, CPU)
+### Reproduction + Extension 2 (48k steps, MPS)
 
-| Metric | reCADRE | Paper (CADRE) | Gap |
-|--------|---------|---------------|-----|
-| F1 Score | 62.1 | 64.3 ± 0.22 | -2.2 |
-| Accuracy | 77.4 | 78.6 ± 0.34 | -1.2 |
-| AUROC | 81.9 | 83.4 ± 0.19 | -1.5 |
-| AUPR | 67.1 | 70.6 ± 1.30 | -3.5 |
+| Metric | reCADRE (CADRE) | CADREDotAttn | Paper (CADRE) |
+|--------|-----------------|--------------|---------------|
+| F1 Score | 63.5 | **64.2** | 64.3 ± 0.22 |
+| Accuracy | 78.2 | **78.2** | 78.6 ± 0.34 |
+| AUROC | 83.3 | **83.3** | 83.4 ± 0.19 |
+| AUPR | 70.9 | **71.0** | 70.6 ± 1.30 |
 
-The gap is expected: this run used 25% of the paper's training steps (12k vs 48k). The model was still improving at the end of training. Running the full 48k steps would close this gap.
+Both models trained on GDSC, seed=2019, evaluated on the held-out test set (170 cell lines).
 
-### Training Progression
+**Key findings:**
+- reCADRE closely reproduces the paper's reported CADRE numbers across all metrics
+- CADREDotAttn matches or marginally outperforms CADRE on every metric, most notably AUPR (71.0 vs 70.9) and F1 (64.2 vs 63.5)
+- CADREDotAttn converges significantly faster on MPS (172s vs 2646s) due to more parallelisable matrix operations in scaled dot-product attention vs. the sequential additive conditioning in CADRE
+
+### Training Progression (48k steps)
 
 ```
-Epoch  5 | loss=0.622 | val F1=62.0 | val AUROC=82.2
-Epoch 10 | loss=0.535 | val F1=62.6 | val AUROC=82.7
-Epoch 15 | loss=0.486 | val F1=62.6 | val AUROC=82.4
-Epoch 20 | loss=0.475 | val F1=62.6 | val AUROC=82.5
-Epoch 24 | loss=0.467 | val F1=62.7 | val AUROC=82.5
+         CADRE (additive)                CADREDotAttn (dot-product)
+Epoch 10 | val F1=62.6  AUROC=82.6      val F1=63.3  AUROC=83.2
+Epoch 40 | val F1=62.6  AUROC=82.7      val F1=63.9  AUROC=83.5
+Epoch 70 | val F1=62.6  AUROC=82.9      val F1=64.6  AUROC=83.6
+Epoch 94 | val F1=63.9  AUROC=83.5      val F1=64.0  AUROC=83.6
 ```
 
-## Planned Extensions
-
-### 1. Cross-Dataset Generalization
-Train on GDSC, evaluate on CCLE to test whether contextual attention produces transferable cell line representations beyond dataset-specific patterns.
-
-### 2. Alternative Attention Mechanisms
-Replace CADRE's additive contextual attention with transformer-style scaled dot-product attention to compare inductive biases for gene-drug interaction modeling.
+### Planned Extension — Cross-Dataset Generalization
+Train on GDSC, evaluate on CCLE overlapping drugs to test whether contextual attention (and dot-product attention) produce representations that transfer across datasets. See `cadre-extension-plan.md` for full design.
 
 ## Dependencies
 
