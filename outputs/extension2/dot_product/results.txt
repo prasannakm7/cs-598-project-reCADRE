@@ -1,0 +1,53 @@
+reCADRE Training Results
+==================================================
+
+Hyperparameters:
+  data_dir: /Users/natalie.erjavec@gc.com/Documents/U-Illiois/cd-598-dlh/cs-598-project-reCADRE/originalData
+  output_dir: /Users/natalie.erjavec@gc.com/Documents/U-Illiois/cd-598-dlh/cs-598-project-reCADRE/outputs/extension2/dot_product
+  embedding_dim: 200
+  attention_size: 128
+  attention_head: 8
+  dropout_rate: 0.6
+  use_attention: True
+  no_attention: False
+  use_cntx_attn: True
+  no_cntx_attn: False
+  dot_product_attn: True
+  d_k: 64
+  batch_size: 8
+  max_iter: 48000
+  learning_rate: 0.3
+  weight_decay: 0.0003
+  eval_every: 10
+  seed: 2019
+  use_cuda: True
+  cpu: False
+
+Dataset:
+  Cell lines: 846
+  Drugs: 260
+  Genes: 3000 (1500 active)
+  Pathways: 25
+  Split: 60/20/20
+
+Results (Test Set):
+  F1 Score:  64.24
+  Accuracy:  78.17
+  AUROC:     83.32
+  AUPR:      71.04
+  Precision: 69.02
+  Recall:    60.09
+
+Results (Validation Set):
+  F1 Score:  64.64
+  Accuracy:  78.43
+  AUROC:     83.61
+  AUPR:      70.23
+
+Paper Reference (CADRE on GDSC, Table 1):
+  F1 Score:  64.3 ± 0.22
+  Accuracy:  78.6 ± 0.34
+  AUROC:     83.4 ± 0.19
+  AUPR:      70.6 ± 1.30
+
+Training time: 173.3s

@@ -35,6 +35,7 @@ from torch.utils.data import DataLoader
 
 from dataset import GDSCDataset, split_dataset
 from model import CADRE, collate_fn
+from model_dot_attn import CADREDotAttn
 
 
 # ---------------------------------------------------------------------------
@@ -214,7 +215,7 @@ def train(args):
     ds = GDSCDataset(data_dir=args.data_dir)
     ds.summary()
 
-    pyhealth_ds = ds.to_pyhealth()
+    pyhealth_ds = ds.to_dataset()
     train_ds, val_ds, test_ds = split_dataset(pyhealth_ds, seed=args.seed)
     print(f"Split: train={len(train_ds)}, val={len(val_ds)}, test={len(test_ds)}")
 
@@ -236,18 +237,28 @@ def train(args):
     gene_emb = ds.get_gene_embeddings()
     pw_info = ds.get_pathway_info()
 
-    model = CADRE(
-        gene_embeddings=gene_emb,
-        num_drugs=len(ds.drug_ids),
-        num_pathways=pw_info["num_pathways"],
-        drug_pathway_ids=pw_info["drug_pathway_ids"],
-        embedding_dim=args.embedding_dim,
-        attention_size=args.attention_size,
-        attention_head=args.attention_head,
-        dropout_rate=args.dropout_rate,
-        use_attention=args.use_attention,
-        use_cntx_attn=args.use_cntx_attn,
-    ).to(device)
+    if getattr(args, "dot_product_attn", False):
+        model = CADREDotAttn(
+            gene_embeddings=gene_emb,
+            num_drugs=len(ds.drug_ids),
+            embedding_dim=args.embedding_dim,
+            num_heads=args.attention_head,
+            d_k=getattr(args, "d_k", 64),
+            dropout_rate=args.dropout_rate,
+        ).to(device)
+    else:
+        model = CADRE(
+            gene_embeddings=gene_emb,
+            num_drugs=len(ds.drug_ids),
+            num_pathways=pw_info["num_pathways"],
+            drug_pathway_ids=pw_info["drug_pathway_ids"],
+            embedding_dim=args.embedding_dim,
+            attention_size=args.attention_size,
+            attention_head=args.attention_head,
+            dropout_rate=args.dropout_rate,
+            use_attention=args.use_attention,
+            use_cntx_attn=args.use_cntx_attn,
+        ).to(device)
 
     trainable = sum(p.numel() for p in model.parameters() if p.requires_grad)
     total = sum(p.numel() for p in model.parameters())
@@ -477,6 +488,10 @@ def parse_args():
     parser.add_argument("--no_attention", action="store_true", default=False)
     parser.add_argument("--use_cntx_attn", action="store_true", default=True)
     parser.add_argument("--no_cntx_attn", action="store_true", default=False)
+    parser.add_argument("--dot_product_attn", action="store_true", default=False,
+                        help="Extension 2: use scaled dot-product attention instead of CADRE's additive attention")
+    parser.add_argument("--d_k", type=int, default=64,
+                        help="Key/query dim per head for dot-product attention")
 
     # Training (Table A2)
     parser.add_argument("--batch_size", type=int, default=8)

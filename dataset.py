@@ -10,8 +10,26 @@ targets, preserving CADRE's multi-task collaborative filtering design.
 import os
 import numpy as np
 import pandas as pd
+from torch.utils.data import Dataset
 
-from pyhealth.datasets import SampleBaseDataset
+
+class SampleBaseDataset(Dataset):
+    """Minimal drop-in replacement for PyHealth's SampleBaseDataset.
+
+    Holds a list of sample dicts and exposes them via the standard
+    PyTorch Dataset interface (len + getitem).
+    """
+
+    def __init__(self, samples, dataset_name="", task_name=""):
+        self.samples = samples
+        self.dataset_name = dataset_name
+        self.task_name = task_name
+
+    def __len__(self):
+        return len(self.samples)
+
+    def __getitem__(self, idx):
+        return self.samples[idx]
 
 
 class GDSCDataset:
@@ -113,8 +131,8 @@ class GDSCDataset:
             "drug_pathway_ids": self.drug_pathway_ids,
         }
 
-    def to_pyhealth(self):
-        """Convert to PyHealth SampleBaseDataset.
+    def to_dataset(self):
+        """Build a SampleBaseDataset (PyTorch Dataset) from loaded GDSC data.
 
         Returns:
             SampleBaseDataset with 846 samples (one per cell line).
@@ -141,11 +159,7 @@ class GDSCDataset:
                 }
             )
 
-        return SampleBaseDataset(
-            samples=samples,
-            dataset_name="GDSC",
-            task_name="drug_response_prediction",
-        )
+        return SampleBaseDataset(samples, "GDSC", "drug_response_prediction")
 
     def summary(self):
         """Print dataset summary statistics."""
