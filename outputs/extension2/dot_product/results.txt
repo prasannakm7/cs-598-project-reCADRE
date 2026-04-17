@@ -50,4 +50,4 @@ Paper Reference (CADRE on GDSC, Table 1):
   AUROC:     83.4 ± 0.19
   AUPR:      70.6 ± 1.30
 
-Training time: 173.3s
+Training time: 196.5s

@@ -14,14 +14,14 @@ CADRE predicts the sensitivity of cancer cell lines to oncology drugs using gene
 2. **Contextual Attention** — weights gene importance differently per drug based on the drug's target pathway, producing drug-specific cell line representations
 3. **Pretrained Gene Embeddings** — transfers biological knowledge from Gene2Vec embeddings trained on large-scale co-expression data
 
-This project re-implements the full CADRE architecture using a standard PyTorch `Dataset` and `DataLoader`. It also includes Extension 2: a scaled dot-product attention variant (`CADREDotAttn`) that replaces CADRE's additive contextual conditioning with transformer-style query/key alignment.
+This project re-implements the full CADRE architecture using PyHealth's `SampleBaseDataset` abstraction and a standard PyTorch `DataLoader`, enabling integration with the broader PyHealth ecosystem. It also includes Extension 2: a scaled dot-product attention variant (`CADREDotAttn`) that replaces CADRE's additive contextual conditioning with transformer-style query/key alignment.
 
 ## Project Structure
 
 ```
 reCADRE/
 ├── README.md               # This file
-├── dataset.py              # GDSC dataset wrapper (PyTorch Dataset)
+├── dataset.py              # GDSC dataset wrapper (PyHealth SampleBaseDataset)
 ├── model.py                # CADRE model (encoder, decoder, attention, loss)
 ├── model_dot_attn.py       # Extension 2: CADREDotAttn (dot-product attention)
 ├── train.py                # Training script with OneCycle LR, evaluation, logging
@@ -68,13 +68,13 @@ The GDSC (Genomics of Drug Sensitivity in Cancer) dataset:
 
 ### Dataset Usage
 
-`dataset.py` wraps the data into a standard PyTorch `Dataset`. Each sample represents one cell line:
+`dataset.py` wraps the data into PyHealth's `SampleBaseDataset`, providing a uniform interface compatible with the PyHealth ecosystem and a standard PyTorch `DataLoader`. Each sample represents one cell line:
 
 ```python
 from dataset import GDSCDataset, split_dataset
 
 ds = GDSCDataset(data_dir="originalData")
-dataset = ds.to_dataset()                          # SampleBaseDataset (846 samples)
+dataset = ds.to_pyhealth()                         # PyHealth SampleBaseDataset (846 samples)
 train_ds, val_ds, test_ds = split_dataset(dataset) # 60/20/20 split
 
 gene_embeddings = ds.get_gene_embeddings()  # (3001, 200) for model init
@@ -227,44 +227,47 @@ python train.py --help
 
 ## Results
 
-### Reproduction + Extension 2 (48k steps, MPS)
+### Reproduction + Extension 2 (48k steps)
 
 | Metric | reCADRE (CADRE) | CADREDotAttn | Paper (CADRE) |
 |--------|-----------------|--------------|---------------|
-| F1 Score | 63.5 | **64.2** | 64.3 ± 0.22 |
-| Accuracy | 78.2 | **78.2** | 78.6 ± 0.34 |
-| AUROC | 83.3 | **83.3** | 83.4 ± 0.19 |
-| AUPR | 70.9 | **71.0** | 70.6 ± 1.30 |
+| F1 Score | 63.46 | **64.24** | 64.3 ± 0.22 |
+| Accuracy | 78.15 | **78.17** | 78.6 ± 0.34 |
+| AUROC | 83.25 | **83.32** | 83.4 ± 0.19 |
+| AUPR | 70.94 | **71.04** | 70.6 ± 1.30 |
+| Precision | 69.86 | 69.02 | — |
+| Recall | 58.14 | **60.09** | — |
+| Training time | 5049s | **197s** | — |
 
 Both models trained on GDSC, seed=2019, evaluated on the held-out test set (170 cell lines).
 
 **Key findings:**
 - reCADRE closely reproduces the paper's reported CADRE numbers across all metrics
-- CADREDotAttn matches or marginally outperforms CADRE on every metric, most notably AUPR (71.0 vs 70.9) and F1 (64.2 vs 63.5)
-- CADREDotAttn converges significantly faster on MPS (172s vs 2646s) due to more parallelisable matrix operations in scaled dot-product attention vs. the sequential additive conditioning in CADRE
-
-### Training Progression (48k steps)
-
-```
-         CADRE (additive)                CADREDotAttn (dot-product)
-Epoch 10 | val F1=62.6  AUROC=82.6      val F1=63.3  AUROC=83.2
-Epoch 40 | val F1=62.6  AUROC=82.7      val F1=63.9  AUROC=83.5
-Epoch 70 | val F1=62.6  AUROC=82.9      val F1=64.6  AUROC=83.6
-Epoch 94 | val F1=63.9  AUROC=83.5      val F1=64.0  AUROC=83.6
-```
+- CADREDotAttn matches or marginally outperforms CADRE on every metric, most notably F1 (64.24 vs 63.46) and Recall (60.09 vs 58.14)
+- CADREDotAttn trains ~26× faster (197s vs 5049s) due to more parallelisable matrix operations in scaled dot-product attention vs. the sequential additive conditioning in CADRE
 
 ### Planned Extension — Cross-Dataset Generalization
 Train on GDSC, evaluate on CCLE overlapping drugs to test whether contextual attention (and dot-product attention) produce representations that transfer across datasets. See `cadre-extension-plan.md` for full design.
 
 ## Dependencies
 
-Install all dependencies:
+Requires **Python 3.12** (recommended). PyHealth 1.x does not support Python 3.13+.
 
 ```bash
-pip install -r requirements.txt
+python3.12 -m venv .venv312
+source .venv312/bin/activate
+
+# Install core dependencies
+pip install torch numpy pandas scikit-learn
+
+# Install pyhealth without its conflicting pandas<2 constraint
+pip install "pyhealth>=1.1.0,<2.0.0" --no-deps
+
+# Install pyhealth runtime dependencies
+pip install tqdm pandarallel mne torchvision "setuptools<81"
 ```
 
-Requires Python 3.9+. See [requirements.txt](requirements.txt) for pinned versions.
+Or, if you want to try `pip install -r requirements.txt` directly and it fails on pyhealth, fall back to the `--no-deps` approach above.
 
 ## References
 

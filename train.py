@@ -215,7 +215,7 @@ def train(args):
     ds = GDSCDataset(data_dir=args.data_dir)
     ds.summary()
 
-    pyhealth_ds = ds.to_dataset()
+    pyhealth_ds = ds.to_pyhealth()
     train_ds, val_ds, test_ds = split_dataset(pyhealth_ds, seed=args.seed)
     print(f"Split: train={len(train_ds)}, val={len(val_ds)}, test={len(test_ds)}")
 
