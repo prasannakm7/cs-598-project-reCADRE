@@ -161,17 +161,24 @@ Drug embeddings receive gradients from two paths: the prediction dot-product (de
 # Install dependencies
 pip install -r requirements.txt
 
-# Train CADRE (full paper settings)
+# Train CADRE (reduced steps for quick validation, ~50 min on CPU)
+python train.py --max_iter 12000 --cpu
+
+# Train CADRE (full paper settings, ~3-5 hours on CPU)
+python train.py --cpu
+
+# With CADRE GPU (CUDA)
 python train.py
 
 # Train dot-product attention variant (Extension 2)
 python train.py --dot_product_attn
 
+# Quick smoke test
+python run_extension2.py --max_iter 800 --cpu
+
 # Run Extension 2 comparison (trains both, prints side-by-side table)
 python run_extension2.py
 
-# Quick smoke test
-python run_extension2.py --max_iter 800 --cpu
 ```
 
 ### Training Configuration
