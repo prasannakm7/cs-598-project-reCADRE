@@ -2,8 +2,9 @@ reCADRE Training Results
 ==================================================
 
 Hyperparameters:
-  data_dir: /Users/natalie.erjavec@gc.com/Documents/U-Illiois/cd-598-dlh/cs-598-project-reCADRE/originalData
-  output_dir: /Users/natalie.erjavec@gc.com/Documents/U-Illiois/cd-598-dlh/cs-598-project-reCADRE/outputs/extension2/dot_product
+  dataset: gdsc
+  data_dir: /home/ubuntu/cs-598/cs-598-project-reCADRE/originalData
+  output_dir: /home/ubuntu/cs-598/cs-598-project-reCADRE/outputs/extension2/dot_product
   embedding_dim: 200
   attention_size: 128
   attention_head: 8
@@ -14,6 +15,8 @@ Hyperparameters:
   no_cntx_attn: False
   dot_product_attn: True
   d_k: 64
+  train_gene_emb: False
+  no_fill_mask: False
   batch_size: 8
   max_iter: 48000
   learning_rate: 0.3
@@ -31,18 +34,18 @@ Dataset:
   Split: 60/20/20
 
 Results (Test Set):
-  F1 Score:  64.24
-  Accuracy:  78.17
-  AUROC:     83.32
-  AUPR:      71.04
-  Precision: 69.02
-  Recall:    60.09
+  F1 Score:  64.26
+  Accuracy:  78.18
+  AUROC:     83.31
+  AUPR:      71.07
+  Precision: 69.03
+  Recall:    60.10
 
 Results (Validation Set):
-  F1 Score:  64.64
-  Accuracy:  78.43
-  AUROC:     83.61
-  AUPR:      70.23
+  F1 Score:  64.66
+  Accuracy:  78.45
+  AUROC:     83.62
+  AUPR:      70.24
 
 Paper Reference (CADRE on GDSC, Table 1):
   F1 Score:  64.3 ± 0.22
@@ -50,4 +53,4 @@ Paper Reference (CADRE on GDSC, Table 1):
   AUROC:     83.4 ± 0.19
   AUPR:      70.6 ± 1.30
 
-Training time: 196.5s
+Training time: 112.3s

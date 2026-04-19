@@ -3,8 +3,8 @@ reCADRE Training Results
 
 Hyperparameters:
   dataset: ccle
-  data_dir: ccleData
-  output_dir: outputs/ccle_seed2019
+  data_dir: ccleDataAligned
+  output_dir: outputs/ccle_aligned_seed2019
   embedding_dim: 200
   attention_size: 100
   attention_head: 8
@@ -15,9 +15,10 @@ Hyperparameters:
   no_cntx_attn: False
   dot_product_attn: False
   d_k: 64
-  train_gene_emb: True
+  train_gene_emb: False
+  no_fill_mask: False
   batch_size: 8
-  max_iter: 96000
+  max_iter: 768000
   learning_rate: 0.05
   weight_decay: 0.0003
   eval_every: 10
@@ -29,22 +30,22 @@ Dataset:
   Cell lines: 846
   Drugs: 260
   Genes: 3000 (1500 active)
-  Pathways: 19
+  Pathways: 12
   Split: 60/20/20
 
 Results (Test Set):
-  F1 Score:  13.07
-  Accuracy:  73.73
-  AUROC:     58.54
-  AUPR:      32.20
-  Precision: 45.61
-  Recall:    7.62
+  F1 Score:  4.75
+  Accuracy:  72.59
+  AUROC:     55.34
+  AUPR:      28.77
+  Precision: 23.68
+  Recall:    2.64
 
 Results (Validation Set):
-  F1 Score:  10.11
-  Accuracy:  76.03
-  AUROC:     52.19
-  AUPR:      26.06
+  F1 Score:  14.04
+  Accuracy:  77.08
+  AUROC:     53.58
+  AUPR:      27.74
 
 Paper Reference (CADRE on GDSC, Table 1):
   F1 Score:  64.3 ± 0.22
@@ -52,4 +53,4 @@ Paper Reference (CADRE on GDSC, Table 1):
   AUROC:     83.4 ± 0.19
   AUPR:      70.6 ± 1.30
 
-Training time: 207.9s
+Training time: 1311.4s

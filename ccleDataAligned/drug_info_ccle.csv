@@ -1,0 +1,25 @@
+Drug_ID,Target pathway
+Erlotinib,EGFR signaling
+Lapatinib,EGFR signaling
+PHA-665752,RTK signaling
+PF-2341066,RTK signaling
+TAE684,RTK signaling
+Vandetanib,Other kinase inhibitor
+Nilotinib,ABL signaling
+AZD0530,RTK signaling
+Sorafenib,RTK signaling
+TKI258,Other kinase inhibitor
+PD-0332991,Cell cycle
+AEW541,Other kinase inhibitor
+RAF265,Other kinase inhibitor
+PLX4720,ERK MAPK signaling
+PD-0325901,ERK MAPK signaling
+AZD6244,ERK MAPK signaling
+Nutlin-3,p53 pathway
+LBW242,Other
+17-AAG,Protein stability and degradation
+L-685458,Other
+Panobinostat,Other
+Paclitaxel,Mitosis
+Irinotecan,Other cytotoxic
+Topotecan,Other cytotoxic
