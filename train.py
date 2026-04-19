@@ -33,7 +33,7 @@ import torch
 import torch.optim as optim
 from torch.utils.data import DataLoader
 
-from dataset import GDSCDataset, split_dataset
+from dataset import GDSCDataset, CCLEDataset, split_dataset
 from model import CADRE, collate_fn
 from model_dot_attn import CADREDotAttn
 
@@ -212,7 +212,16 @@ def train(args):
 
     # --- Data ---
     print("Loading dataset...")
-    ds = GDSCDataset(data_dir=args.data_dir)
+    if getattr(args, "dataset", "gdsc").lower() == "ccle":
+        ds = CCLEDataset(data_dir=args.data_dir)
+    else:
+        ds = GDSCDataset(data_dir=args.data_dir)
+    if not hasattr(ds, "summary"):
+        def _noop():
+            print(f"{type(ds).__name__}: {len(ds.common_samples)} cell lines, "
+                  f"{len(ds.tgt.columns)} drugs, {len(ds.gene_names)} genes, "
+                  f"{ds.get_pathway_info()['num_pathways']} pathways")
+        ds.summary = _noop
     ds.summary()
 
     pyhealth_ds = ds.to_pyhealth()
@@ -258,6 +267,7 @@ def train(args):
             dropout_rate=args.dropout_rate,
             use_attention=args.use_attention,
             use_cntx_attn=args.use_cntx_attn,
+            freeze_gene_emb=not getattr(args, "train_gene_emb", False),
         ).to(device)
 
     trainable = sum(p.numel() for p in model.parameters() if p.requires_grad)
@@ -474,6 +484,9 @@ def parse_args():
     _script_dir = os.path.dirname(os.path.abspath(__file__))
 
     # Data
+    parser.add_argument("--dataset", type=str, default="gdsc",
+                        choices=["gdsc", "ccle"],
+                        help="Which dataset to train on")
     parser.add_argument("--data_dir", type=str,
                         default=os.path.join(_script_dir, "originalData"))
     parser.add_argument("--output_dir", type=str,
@@ -492,6 +505,8 @@ def parse_args():
                         help="Extension 2: use scaled dot-product attention instead of CADRE's additive attention")
     parser.add_argument("--d_k", type=int, default=64,
                         help="Key/query dim per head for dot-product attention")
+    parser.add_argument("--train_gene_emb", action="store_true", default=False,
+                        help="Unfreeze gene embeddings (CADRE∆pretrain variant)")
 
     # Training (Table A2)
     parser.add_argument("--batch_size", type=int, default=8)

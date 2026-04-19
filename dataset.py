@@ -310,12 +310,26 @@ class CCLEDataset:
                 "Ensure exp_ccle.csv, ccle.csv, drug_info_ccle.csv exist."
             ) from e
 
-        # Find common samples
-        self.common_samples = sorted(set(self.exp.index) & set(self.tgt.index))
-
-        # Align to common samples
+        # Find common samples (case-/punctuation-insensitive match to handle
+        # CCLE naming inconsistency between drug and expression tables,
+        # e.g. "22Rv1" vs "22RV1", "42-MG-BA" vs "42MGBA")
+        def _norm(s):
+            return str(s).upper().replace("-", "").replace(" ", "").replace(".", "")
+        exp_norm = {_norm(i): i for i in self.exp.index}
+        tgt_norm = {_norm(i): i for i in self.tgt.index}
+        common_norm = sorted(set(exp_norm) & set(tgt_norm))
+        # Prefer the expression-side label as the canonical id
+        self.common_samples = [exp_norm[k] for k in common_norm]
         self.exp = self.exp.loc[self.common_samples]
-        self.tgt = self.tgt.loc[self.common_samples]
+        self.tgt = self.tgt.loc[[tgt_norm[k] for k in common_norm]]
+        # Realign tgt index to match exp index
+        self.tgt.index = self.common_samples
+
+        # The preprocessed CCLE labels are inverted (~75% "1") vs paper's
+        # 24.8% sensitive prior and GDSC's "1 = sensitive" convention — flip
+        # so that "1 = sensitive" matches the model's loss convention.
+        mask = self.tgt.notnull()
+        self.tgt = self.tgt.where(~mask, 1 - self.tgt)
 
         # Build pathway mapping
         self._build_pathway_mapping()
