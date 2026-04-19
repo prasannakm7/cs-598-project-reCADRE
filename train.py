@@ -229,8 +229,11 @@ def train(args):
     print(f"Split: train={len(train_ds)}, val={len(val_ds)}, test={len(test_ds)}")
 
     # Apply missing value imputation on training set (Section 4.2)
-    fill_mask_training(train_ds)
-    print("Applied fill_mask to training set")
+    if not getattr(args, "no_fill_mask", False):
+        fill_mask_training(train_ds)
+        print("Applied fill_mask to training set")
+    else:
+        print("Skipped fill_mask (--no_fill_mask)")
 
     train_loader = DataLoader(
         train_ds, batch_size=args.batch_size, shuffle=True, collate_fn=collate_fn
@@ -507,6 +510,8 @@ def parse_args():
                         help="Key/query dim per head for dot-product attention")
     parser.add_argument("--train_gene_emb", action="store_true", default=False,
                         help="Unfreeze gene embeddings (CADRE∆pretrain variant)")
+    parser.add_argument("--no_fill_mask", action="store_true", default=False,
+                        help="Skip per-drug-mode imputation of missing labels")
 
     # Training (Table A2)
     parser.add_argument("--batch_size", type=int, default=8)
