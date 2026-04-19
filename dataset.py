@@ -68,12 +68,15 @@ class GDSCDataset:
         self.exp = self.exp.loc[self.common_samples]
         self.tgt = self.tgt.loc[self.common_samples]
 
-        # Build pathway mapping
-        self._build_pathway_mapping()
-
-        # Gene names for interpretability
+        # Gene and drug IDs (before mapping functions)
         self.gene_names = list(self.exp.columns)
         self.drug_ids = list(self.tgt.columns)
+
+        # Build pathway mapping
+        self._build_pathway_mapping()
+        
+        # Build drug ID to name mapping for cross-dataset comparison
+        self._build_id_to_name_mapping()
 
     def _build_pathway_mapping(self):
         """Map each drug to a pathway integer ID."""
@@ -95,6 +98,22 @@ class GDSCDataset:
             self.pathway2id[pw] for pw in self.drug_pathways
         ]
 
+    def _build_id_to_name_mapping(self):
+        """Create mapping from numeric drug ID to drug name.
+        
+        Uses drug_info_gdsc.csv which contains Name column that maps
+        numeric IDs (used in gdsc.csv columns) to drug names.
+        """
+        self.id_to_name = {}
+        for drug_id, row in self.drug_info.iterrows():
+            self.id_to_name[str(drug_id)] = row['Name']
+        
+        # Get drug names for all drugs in the dataset (by numeric ID)
+        self.drug_names = [
+            self.id_to_name.get(str(int(drug_id)), f"UNKNOWN_{drug_id}")
+            for drug_id in self.drug_ids
+        ]
+
     def get_gene_embeddings(self):
         """Return pretrained gene embeddings (3001 x 200).
 
@@ -111,6 +130,34 @@ class GDSCDataset:
             "num_pathways": len(self.pathway2id),
             "drug_pathway_ids": self.drug_pathway_ids,
         }
+
+    def get_overlap_drugs(self, other_dataset):
+        """Find drug IDs overlapping with another dataset.
+        
+        Compares by drug NAME, not numeric ID, to handle GDSC (numeric IDs)
+        vs CCLE (drug names) cross-dataset generalization.
+        
+        Args:
+            other_dataset: Another dataset (GDSC or CCLE)
+        
+        Returns:
+            Tuple of (overlap_indices_self, overlap_indices_other, overlap_drug_names)
+        """
+        # Use drug names for comparison (works across GDSC/CCLE)
+        self_names = set(self.drug_names)
+        other_names = set(other_dataset.drug_names if hasattr(other_dataset, 'drug_names') 
+                         else other_dataset.drug_ids)
+        overlap = sorted(self_names & other_names)
+
+        # Get indices in original datasets
+        self_indices = [self.drug_names.index(d) for d in overlap]
+        other_indices = [
+            (other_dataset.drug_names.index(d) if hasattr(other_dataset, 'drug_names') 
+             else other_dataset.drug_ids.index(d))
+            for d in overlap
+        ]
+
+        return self_indices, other_indices, overlap
 
     def to_pyhealth(self):
         """Convert to PyHealth SampleBaseDataset.
@@ -201,3 +248,189 @@ def split_dataset(dataset, ratios=(0.6, 0.2, 0.2), seed=2019):
     test_ds = SampleBaseDataset(test_samples, "GDSC", "drug_response_prediction")
 
     return train_ds, val_ds, test_ds
+
+
+# ============================================================================
+# CCLE Dataset (Extension 1: Cross-Dataset Generalization)
+# ============================================================================
+class CCLEDataset:
+    """Loads CCLE data and produces a PyHealth SampleBaseDataset.
+
+    Similar structure to GDSCDataset but for CCLE data, allowing
+    cross-dataset evaluation on overlapping drugs.
+
+    Attributes:
+        exp: Gene expression matrix (cell lines x genes)
+        tgt: Drug sensitivity targets (cell lines x drugs)
+        drug_info: Drug metadata
+        gene_embeddings: Pretrained embeddings
+        common_samples: Cell lines with both exp and sensitivity data
+        drug_pathways: Pathway for each drug
+        drug_pathway_ids: Integer pathway IDs per drug
+        gene_names: Gene names ordered as in exp matrix
+        drug_ids: Drug IDs ordered as in tgt matrix
+    """
+
+    def __init__(self, data_dir="ccleData", seed=2019):
+        """Initialize CCLE dataset.
+        
+        Args:
+            data_dir: Directory containing CCLE CSV files
+            seed: Random seed for reproducibility
+        """
+        self.data_dir = data_dir
+        self.seed = seed
+        self._load_data()
+
+    def _load_data(self):
+        """Load and align all data files."""
+        try:
+            # Gene expression
+            self.exp = pd.read_csv(
+                os.path.join(self.data_dir, "exp_ccle.csv"), index_col=0
+            )
+
+            # Drug sensitivity with NaN for untested pairs
+            self.tgt = pd.read_csv(
+                os.path.join(self.data_dir, "ccle.csv"), index_col=0
+            )
+
+            # Drug metadata
+            self.drug_info = pd.read_csv(
+                os.path.join(self.data_dir, "drug_info_ccle.csv"), index_col=0
+            )
+
+            # Gene embeddings (should match GDSC's dimensionality for transfer)
+            self.gene_embeddings = np.loadtxt(
+                os.path.join(self.data_dir, "exp_emb_ccle.csv"), delimiter=","
+            )
+        except FileNotFoundError as e:
+            raise FileNotFoundError(
+                f"CCLE data files not found in {self.data_dir}. "
+                "Ensure exp_ccle.csv, ccle.csv, drug_info_ccle.csv exist."
+            ) from e
+
+        # Find common samples
+        self.common_samples = sorted(set(self.exp.index) & set(self.tgt.index))
+
+        # Align to common samples
+        self.exp = self.exp.loc[self.common_samples]
+        self.tgt = self.tgt.loc[self.common_samples]
+
+        # Build pathway mapping
+        self._build_pathway_mapping()
+
+        # Gene and drug names
+        self.gene_names = list(self.exp.columns)
+        self.drug_ids = list(self.tgt.columns)
+        
+        # For CCLE, drug names ARE the drug IDs (drug names used as column headers)
+        self.drug_names = self.drug_ids
+
+    def _build_pathway_mapping(self):
+        """Map each drug to a pathway integer ID."""
+        # For CCLE, drugs are identified by name in columns, not numeric ID
+        # Build mapping from drug name to pathway
+        id2pw = {}
+        for idx in self.drug_info.index:
+            # Drug info index should be the drug name
+            pathway = self.drug_info.loc[idx, "Target pathway"]
+            id2pw[str(idx)] = pathway
+        
+        # Get pathway for each drug column in tgt (drug columns are drug names)
+        self.drug_pathways = []
+        for drug_name in self.tgt.columns:
+            # Try exact match first
+            if drug_name in id2pw:
+                pw = id2pw[drug_name]
+            else:
+                # Try case-insensitive match
+                matching = [k for k in id2pw.keys() if k.lower() == str(drug_name).lower()]
+                pw = id2pw[matching[0]] if matching else "Unknown"
+            self.drug_pathways.append(pw)
+        
+        # Build pathway-to-id mapping (assign integer to each unique pathway)
+        unique_pathways = sorted(set(self.drug_pathways))
+        self.pathway2id = {pw: i for i, pw in enumerate(unique_pathways)}
+        
+        # Integer pathway IDs aligned with drug columns
+        self.drug_pathway_ids = [
+            self.pathway2id[pw] for pw in self.drug_pathways
+        ]
+
+    def get_gene_embeddings(self):
+        """Return pretrained gene embeddings."""
+        return self.gene_embeddings
+
+    def get_pathway_info(self):
+        """Return pathway metadata."""
+        return {
+            "pathway2id": self.pathway2id,
+            "id2pathway": {v: k for k, v in self.pathway2id.items()},
+            "num_pathways": len(self.pathway2id),
+            "drug_pathway_ids": self.drug_pathway_ids,
+        }
+
+    def to_pyhealth(self):
+        """Convert to PyHealth SampleBaseDataset format.
+        
+        Returns:
+            SampleBaseDataset with samples = cell lines
+        """
+        samples = []
+        df_exp_binary = self.exp.astype(int)  # Ensure binary
+
+        for idx, cell_line_id in enumerate(self.common_samples):
+            # Active gene indices (1-indexed to match GDSC convention)
+            active_genes = np.where(df_exp_binary.loc[cell_line_id] == 1)[0] + 1
+            active_genes = active_genes.astype(int).tolist()
+
+            # Drug sensitivity labels
+            labels = self.tgt.loc[cell_line_id].values.astype(float)
+
+            # Mask: 1 for tested, 0 for missing
+            mask = (~np.isnan(labels)).astype(int).tolist()
+
+            # Fill NaN with 0 for processing
+            labels = np.nan_to_num(labels, nan=0.0).astype(int).tolist()
+
+            sample = {
+                "patient_id": cell_line_id,
+                "visit_id": cell_line_id,
+                "gene_indices": active_genes,
+                "labels": labels,
+                "mask": mask,
+                "drug_pathway_ids": self.drug_pathway_ids,
+            }
+
+            samples.append(sample)
+
+        return SampleBaseDataset(samples=samples, dataset_name="CCLE")
+
+    def get_overlap_drugs(self, other_dataset):
+        """Find drug IDs overlapping with another dataset.
+        
+        Compares by drug NAME, not numeric ID, to handle GDSC (numeric IDs)
+        vs CCLE (drug names) cross-dataset generalization.
+        
+        Args:
+            other_dataset: Another dataset (GDSC or CCLE)
+        
+        Returns:
+            Tuple of (overlap_indices_self, overlap_indices_other, overlap_drug_names)
+        """
+        # Use drug names for comparison
+        self_names = set(self.drug_names)
+        other_names = set(other_dataset.drug_names if hasattr(other_dataset, 'drug_names') 
+                         else other_dataset.drug_ids)
+        overlap = sorted(self_names & other_names)
+
+        # Get indices in original datasets
+        self_indices = [self.drug_names.index(d) for d in overlap]
+        other_indices = [
+            (other_dataset.drug_names.index(d) if hasattr(other_dataset, 'drug_names') 
+             else other_dataset.drug_ids.index(d))
+            for d in overlap
+        ]
+
+        return self_indices, other_indices, overlap

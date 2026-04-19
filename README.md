@@ -21,11 +21,13 @@ This project re-implements the full CADRE architecture using PyHealth's `SampleB
 ```
 reCADRE/
 ├── README.md               # This file
-├── dataset.py              # GDSC dataset wrapper (PyHealth SampleBaseDataset)
+├── dataset.py              # GDSC/CCLE dataset wrapper for PyHealth SampleBaseDataset
 ├── model.py                # CADRE model (encoder, decoder, attention, loss)
 ├── model_dot_attn.py       # Extension 2: CADREDotAttn (dot-product attention)
 ├── train.py                # Training script with OneCycle LR, evaluation, logging
 ├── run_extension2.py       # Extension 2: trains both models and prints comparison
+├── eval_pretrained_ccle.py # Extension 1: Cross-dataset evaluation script for GDSC → CCLE transfer
+├── preprocess_ccle.py      # Extension 1: CCLE preprocessing script to generate ccleData/
 ├── originalData/           # Pre-processed GDSC data files
 │   ├── exp_gdsc.csv            # Binary gene expression (1014 × 3000)
 │   ├── gdsc.csv                # Binary drug sensitivity (846 × 260)
@@ -35,6 +37,11 @@ reCADRE/
 │   ├── cnv_gdsc.csv            # Copy number variation data
 │   ├── met_gdsc.csv            # Gene methylation data
 │   └── rng.txt                 # Shuffle indices for reproducibility
+├── ccleData/               # Processed CCLE data for cross-dataset evaluation
+│   ├── ccle.csv                # Binary drug sensitivity (CCLE cell lines × 24 drugs)
+│   ├── exp_ccle.csv            # Binary gene expression (CCLE cell lines × genes)
+│   ├── drug_info_ccle.csv      # CCLE drug metadata with target pathways
+│   └── exp_emb_ccle.csv        # Gene embeddings copied from GDSC for transfer evaluation
 └── outputs/                # Training outputs (generated)
     ├── results.txt             # Human-readable results summary
     ├── logs.pkl                # Full training logs (metrics, predictions)
@@ -253,8 +260,37 @@ Both models trained on GDSC, seed=2019, evaluated on the held-out test set (170 
 - CADREDotAttn matches or marginally outperforms CADRE on every metric, most notably F1 (64.24 vs 63.46) and Recall (60.09 vs 58.14)
 - CADREDotAttn trains ~26× faster (197s vs 5049s) due to more parallelisable matrix operations in scaled dot-product attention vs. the sequential additive conditioning in CADRE
 
-### Planned Extension — Cross-Dataset Generalization
-Train on GDSC, evaluate on CCLE overlapping drugs to test whether contextual attention (and dot-product attention) produce representations that transfer across datasets. See `cadre-extension-plan.md` for full design.
+```
+Epoch  5 | loss=0.622 | val F1=62.0 | val AUROC=82.2
+Epoch 10 | loss=0.535 | val F1=62.6 | val AUROC=82.7
+Epoch 15 | loss=0.486 | val F1=62.6 | val AUROC=82.4
+Epoch 20 | loss=0.475 | val F1=62.6 | val AUROC=82.5
+Epoch 24 | loss=0.467 | val F1=62.7 | val AUROC=82.5
+```
+
+## Cross-Dataset Generalization Results
+
+The GDSC-trained CADRE model was evaluated directly on CCLE using `eval_pretrained_ccle.py`.
+
+- **GDSC within-dataset performance:** F1 = 63.98%, AUROC = 83.59%
+- **CCLE direct transfer (6 overlapping drugs):** F1 = 39.25%, AUROC = 45.78%
+- **Generalization gap:** F1 drop = 24.74 percentage points, AUROC drop = 37.81 percentage points
+
+This highlights strong dataset shift between GDSC and CCLE, and motivates domain adaptation or batch correction for future work.
+
+### Run the cross-dataset evaluation
+
+```bash
+python eval_pretrained_ccle.py --device cuda
+```
+
+## Completed Extensions
+
+### 1. Cross-Dataset Generalization
+Train on GDSC, evaluate on CCLE. This is implemented in `eval_pretrained_ccle.py`, which loads a pretrained GDSC model and evaluates direct transfer performance on overlapping CCLE drugs.
+
+### 2. Alternative Attention Mechanisms
+Replace CADRE's additive contextual attention with transformer-style scaled dot-product attention to compare inductive biases for gene-drug interaction modeling.
 
 ## Dependencies
 

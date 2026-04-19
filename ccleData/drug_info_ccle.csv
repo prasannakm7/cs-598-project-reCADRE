@@ -1,0 +1,25 @@
+Drug_ID,Target pathway,MOA,Drug_Class
+Erlotinib,EGFR,EGFR  Inhibitor,Kinase inhibitor
+Lapatinib,"EGFR, HER2",EGFR and HER2 Inhibitor,Kinase inhibitor
+PHA-665752,c-MET,c-MET Inhibitor,Kinase inhibitor
+PF-2341066,"c-MET, ALK",c-MET and ALK Inhibitor,Kinase inhibitor
+TAE684,ALK,ALK Inhibitor,Kinase inhibitor
+Vandetanib,"Abl, EGFR, Flt3, C-KIT, RET, VEGFR-1, KDR, FLT4",Multi-kinase inhibitor,Kinase inhibitor
+Nilotinib,Abl/Bcr-Abl,Abl Inhibitor,Kinase inhibitor
+AZD0530,"Src, Abl/Bcr-Abl, EGFR",Src and Abl inhibitor,Kinase inhibitor
+Sorafenib,"Flt3, C-KIT, PDGFRbeta, RET, Raf kinase B, Raf kinase C, VEGFR-1, KDR, FLT4",Multi-kinase inhibitor,Kinase inhibitor
+TKI258,"EGFR, FGFR1, PDGFRbeta, VEGFR-1, KDR",Multi-kinase inhibitor,Kinase inhibitor
+PD-0332991 ,CDK4/6,CDK4/6 Inhibitor,Kinase inhibitor
+AEW541,IGF-1R,IGF-1R Inhibitor,Kinase inhibitor
+RAF265,"Raf kinase B, KDR",Raf kinase B and KDR Inhibitor,Kinase inhibitor
+PLX4720,RAF ,Raf kinase B Inhibitor,Kinase inhibitor
+PD-0325901,MEK,MEK1 and MEK2 Inhibitor,Kinase inhibitor
+AZD6244,MEK,MEK1 and MEK2 Inhibitor,Kinase inhibitor
+Nutlin-3,MDM2,MDM2 Inhibitor,Other targeted therapies
+LBW242,IAP,Inhibitor of Apoptosis Proteins (IAP) Inhibitor,Other targeted therapies
+17-AAG,HSP90,Heat Shock Protein 90 (hsp90) Inhibitor,Other targeted therapies
+L-685458,Gamma Secretase,gamma-Secretase Inhibitor,Other targeted therapies
+Panobinostat  ,HDAC,Histone Deacetylase (HDAC) Inhibitor,Other targeted therapies
+Paclitaxel,beta-tubulin ,Microtubule-Stabilizing Agents,Cytotoxic
+Irinotecan,Topoisomerase I,DNA Topoisomerase I Inhibitor,Cytotoxic
+Topotecan,Topoisomerase I,DNA Topoisomerase I Inhibitor,Cytotoxic
