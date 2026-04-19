@@ -290,6 +290,7 @@ def collate_fn(batch):
     labels = []
     masks = []
     patient_ids = []
+    drug_pathway_ids = None
 
     for s in batch:
         gi = s["gene_indices"]
@@ -299,10 +300,20 @@ def collate_fn(batch):
         labels.append(s["labels"])
         masks.append(s["mask"])
         patient_ids.append(s["patient_id"])
+        
+        # Get drug_pathway_ids from first sample (same for all in PyHealth)
+        if drug_pathway_ids is None and "drug_pathway_ids" in s:
+            drug_pathway_ids = s["drug_pathway_ids"]
 
-    return {
+    result = {
         "gene_indices": torch.LongTensor(gene_indices),
         "labels": torch.FloatTensor(labels),
         "mask": torch.FloatTensor(masks),
         "patient_ids": patient_ids,
     }
+    
+    # Add drug_pathway_ids if available
+    if drug_pathway_ids is not None:
+        result["drug_pathway_ids"] = torch.LongTensor(drug_pathway_ids)
+    
+    return result
