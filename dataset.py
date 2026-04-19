@@ -10,8 +10,7 @@ targets, preserving CADRE's multi-task collaborative filtering design.
 import os
 import numpy as np
 import pandas as pd
-
-from pyhealth.datasets import SampleBaseDataset
+from pyhealth.datasets.sample_dataset import SampleBaseDataset
 
 
 class GDSCDataset:
